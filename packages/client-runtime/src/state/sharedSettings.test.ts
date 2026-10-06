@@ -1,6 +1,7 @@
 import {
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
+  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
 } from "@t3tools/contracts";
@@ -43,6 +44,17 @@ describe("supportsSharedSettingsSync", () => {
 });
 
 describe("splitSharedServerPatch", () => {
+  it("keeps project overrides local: project ids belong to one environment", () => {
+    const patch = {
+      projectSettingsOverrides: { [ProjectId.make("project")]: { defaultAutoPull: true } },
+      sidebarAutoSettleOnMerge: false,
+    };
+    expect(splitSharedServerPatch(patch)).toEqual({
+      sharedPatch: { sidebarAutoSettleOnMerge: false },
+      localPatch: { projectSettingsOverrides: patch.projectSettingsOverrides },
+    });
+  });
+
   it.each([
     {
       instanceId: ProviderInstanceId.make("codex"),
@@ -113,11 +125,13 @@ describe("pickSharedServerSettings", () => {
     expect(
       Object.keys(pickSharedServerSettings(DEFAULT_SERVER_SETTINGS, restartCapabilities)).sort(),
     ).toEqual([
+      "autoResumeLimitedThreads",
       "continueThreadsAfterServerUpdate",
       "createGitHubPullRequestsAsDraft",
       "newWorktreesStartFromOrigin",
       "sidebarAutoSettleAfterDays",
       "sidebarAutoSettleOnMerge",
+      "snoozeLimitedThreads",
       "sourceControlWritingStyle",
       "textGenerationModelSelection",
     ]);

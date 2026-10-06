@@ -1,22 +1,28 @@
 import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
-import { usePrimarySettings, useUpdatePrimarySettings } from "../../hooks/useSettings";
 import { Switch } from "../ui/switch";
 import { SettingResetButton, SettingsRow, SettingsSection } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import {
+  useScopedSettings,
+  useScopedSettingsMixed,
+  useUpdateScopedSettings,
+} from "./useScopedSettings";
 
 export function SourceControlPullRequestSettingsSection() {
-  const settings = usePrimarySettings();
-  const updateSettings = useUpdatePrimarySettings();
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const mixed = useScopedSettingsMixed(["createGitHubPullRequestsAsDraft"]);
   const defaultValue = DEFAULT_UNIFIED_SETTINGS.createGitHubPullRequestsAsDraft;
 
   return (
     <SettingsSection title="Pull requests">
       <SettingsRow
         serverScoped
+        settingKeys={["createGitHubPullRequestsAsDraft"]}
         {...searchableSetting("create-github-pull-requests-as-draft")}
         description="Start new GitHub pull requests as drafts. Mark them ready for review when you have finished iterating."
         resetAction={
-          settings.createGitHubPullRequestsAsDraft !== defaultValue ? (
+          mixed || settings.createGitHubPullRequestsAsDraft !== defaultValue ? (
             <SettingResetButton
               label="draft pull requests"
               onClick={() => updateSettings({ createGitHubPullRequestsAsDraft: defaultValue })}
@@ -25,7 +31,8 @@ export function SourceControlPullRequestSettingsSection() {
         }
         control={
           <Switch
-            checked={settings.createGitHubPullRequestsAsDraft}
+            mixed={mixed}
+            checked={mixed ? false : settings.createGitHubPullRequestsAsDraft}
             onCheckedChange={(checked) =>
               updateSettings({ createGitHubPullRequestsAsDraft: Boolean(checked) })
             }
