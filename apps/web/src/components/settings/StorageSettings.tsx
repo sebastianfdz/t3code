@@ -1,3 +1,5 @@
+import { SettledArtifactDirectory } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import type {
   StorageCleanupReport,
   StorageCleanupSettings,
@@ -106,10 +108,12 @@ function RetentionControl({
   label,
   value,
   onChange,
+  defaultDays = 8,
 }: {
   label: string;
   value: number | null;
   onChange: (value: number | null) => void;
+  defaultDays?: number;
 }) {
   const [draft, setDraft] = useState(value);
   const [savedValue, setSavedValue] = useState(value);
@@ -157,7 +161,7 @@ function RetentionControl({
       <Switch
         aria-label={label}
         checked={value !== null}
-        onCheckedChange={(enabled) => onChange(enabled ? 8 : null)}
+        onCheckedChange={(enabled) => onChange(enabled ? defaultDays : null)}
       />
     </div>
   );
@@ -180,7 +184,7 @@ function CleanupResults({
     <>
       {report.entries.map((entry, index) => {
         const name =
-          entry.kind === "worktree"
+          entry.kind === "worktree" || entry.kind === "worktree-artifacts"
             ? (entry.path?.split(/[\\/]/).findLast(Boolean) ?? "Worktrees")
             : entry.kind === "logs"
               ? "Rotated logs"
@@ -275,6 +279,9 @@ function CleanupSection() {
       rules.worktreeOnDelete ||
       rules.worktreeUnchanged;
     return (
+      (environment.serverConfig?.environment.capabilities.settledArtifactCleanup === true &&
+        settings.storageCleanup.settledArtifactsAfterDays !== null &&
+        settings.storageCleanup.settledArtifactDirectories.length > 0) ||
       settings.storageCleanup.browserArtifactsAfterDays !== null ||
       settings.storageCleanup.logsAfterDays !== null ||
       enabled(resolveWorktreeCleanup(settings, null)) ||
@@ -397,6 +404,7 @@ function CleanupSection() {
 }
 
 export function StorageSettingsPanel() {
+  const artifactDirectoriesEdited = useRef(false);
   const { scope, connectedEnvironments, targets, target } = useSettingsScope();
   const scopedSettings = useScopedSettings();
   const isProjectScope = scope.kind === "project" || scope.kind === "checkout";
@@ -613,6 +621,76 @@ export function StorageSettingsPanel() {
 
       {!isProjectScope && (
         <SettingsSection id="storage-artifacts" title="Artifacts and logs">
+          {connectedEnvironments.every(
+            (environment) =>
+              environment.serverConfig?.environment.capabilities.settledArtifactCleanup === true,
+          ) && (
+            <>
+              <SettingsRow
+                title="Clean settled worktree artifacts"
+                status={ruleStatus("settledArtifactsAfterDays")}
+                description="Remove configured ignored directories after a thread has been settled this many days. Keeps the thread and checkout."
+                serverScoped
+                control={
+                  <RetentionControl
+                    label="Clean settled worktree artifacts"
+                    defaultDays={14}
+                    value={settings.settledArtifactsAfterDays}
+                    onChange={(settledArtifactsAfterDays) => update({ settledArtifactsAfterDays })}
+                  />
+                }
+              />
+              <SettingsRow
+                title="Directories to clean"
+                status={
+                  targets.some(
+                    (target) =>
+                      target.settings.storageCleanup.settledArtifactDirectories.join(",") !==
+                      settings.settledArtifactDirectories.join(","),
+                  )
+                    ? "Mixed across selected machines"
+                    : undefined
+                }
+                description="Comma-separated directory paths, matched at any depth, such as node_modules, .next, .turbo/cache. Only Git-ignored files are cleaned. Reinstall dependencies before resuming work."
+                serverScoped
+                control={
+                  <Input
+                    key={`${targets.map((target) => target.environmentId).join(",")}:${settings.settledArtifactDirectories.join(",")}`}
+                    aria-label="Directories to clean"
+                    defaultValue={settings.settledArtifactDirectories.join(", ")}
+                    onChange={(event) => {
+                      artifactDirectoriesEdited.current = true;
+                      event.currentTarget.setCustomValidity("");
+                    }}
+                    onBlur={(event) => {
+                      if (!artifactDirectoriesEdited.current) return;
+                      const directories = [
+                        ...new Set(
+                          event.currentTarget.value
+                            .split(",")
+                            .map((value) => value.trim())
+                            .filter(Boolean),
+                        ),
+                      ];
+                      if (
+                        directories.length > 32 ||
+                        !directories.every(Schema.is(SettledArtifactDirectory))
+                      ) {
+                        event.currentTarget.setCustomValidity(
+                          "Use up to 32 relative directory paths without globs, .., or .git.",
+                        );
+                        event.currentTarget.reportValidity();
+                        return;
+                      }
+                      event.currentTarget.setCustomValidity("");
+                      artifactDirectoriesEdited.current = false;
+                      update({ settledArtifactDirectories: directories });
+                    }}
+                  />
+                }
+              />
+            </>
+          )}
           <SettingsRow
             title="Delete old browser artifacts"
             status={ruleStatus("browserArtifactsAfterDays")}

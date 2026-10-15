@@ -1023,7 +1023,7 @@ const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettin
 ]);
 
 export const StorageCleanupReportEntry = Schema.Struct({
-  kind: Schema.Literals(["worktree", "browser-artifacts", "logs"]),
+  kind: Schema.Literals(["worktree", "worktree-artifacts", "browser-artifacts", "logs"]),
   outcome: Schema.Literals(["removed", "kept", "failed"]),
   reason: Schema.String,
   path: Schema.NullOr(Schema.String),
@@ -1044,7 +1044,24 @@ export const StorageCleanupReport = Schema.Struct({
 });
 export type StorageCleanupReport = typeof StorageCleanupReport.Type;
 
+// Relative directory suffixes, matched at any depth; no globs or traversal.
+export const SettledArtifactDirectory = Schema.String.check(
+  Schema.isMaxLength(200),
+  Schema.isPattern(
+    /^(?!.*(?:^|\/)(?:\.{1,2}|\.git)(?:\/|$))[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*$/i,
+  ),
+);
+const SettledArtifactDirectories = Schema.Array(SettledArtifactDirectory).check(
+  Schema.isMaxLength(32),
+);
+
 export const StorageCleanupSettings = Schema.Struct({
+  settledArtifactDirectories: SettledArtifactDirectories.pipe(
+    Schema.withDecodingDefault(Effect.succeed(["node_modules", ".next"])),
+  ),
+  settledArtifactsAfterDays: StorageRetentionDays.pipe(
+    Schema.withDecodingDefault(Effect.succeed(14)),
+  ),
   worktreeKeepWhen: WorktreeKeepWhen.pipe(
     Schema.withDecodingDefault(Effect.succeed("uncommitted-changes")),
   ),
@@ -1423,6 +1440,8 @@ export const ServerSettingsPatch = Schema.Struct({
       worktreeOnMerge: Schema.optionalKey(Schema.Boolean),
       worktreeOnDelete: Schema.optionalKey(Schema.Boolean),
       worktreeUnchanged: Schema.optionalKey(Schema.Boolean),
+      settledArtifactDirectories: Schema.optionalKey(SettledArtifactDirectories),
+      settledArtifactsAfterDays: Schema.optionalKey(StorageRetentionDays),
       browserArtifactsAfterDays: Schema.optionalKey(StorageRetentionDays),
       logsAfterDays: Schema.optionalKey(StorageRetentionDays),
     }),
