@@ -1,3 +1,4 @@
+import { resolveThreadGitStatus } from "@t3tools/shared/threadPullRequests";
 import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -1144,7 +1145,10 @@ export default function GitActionsControl({
   // Default to true while loading so we don't flash init controls.
   const isRepo = gitStatus?.isRepo ?? true;
   const hasPrimaryRemote = gitStatus?.hasPrimaryRemote ?? false;
-  const gitStatusForActions = gitStatus;
+  const gitStatusForActions = useMemo(
+    () => resolveThreadGitStatus(gitStatus, activeServerThread?.pullRequests),
+    [gitStatus, activeServerThread?.pullRequests],
+  );
   // Matches the diff panel's Changes view. Older servers only report uncommitted totals.
   const changesTotals = gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
 

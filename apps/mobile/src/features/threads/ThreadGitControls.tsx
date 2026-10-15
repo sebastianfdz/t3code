@@ -1,3 +1,5 @@
+import { resolveThreadGitStatus } from "@t3tools/shared/threadPullRequests";
+import { useThreadShell } from "../../state/entities";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { createNativeHeaderMenu } from "../../components/nativeHeaderMenu.ios";
 import type { ScreenHeaderMenu } from "../../components/ScreenHeader.types";
@@ -122,7 +124,15 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
     AuthSourceControlWriteScope,
   );
   const threadId = props.threadId;
-  const { gitStatus, gitOperationLabel, onPull, onRunAction } = props;
+  const { gitOperationLabel, onPull, onRunAction } = props;
+  const thread = useThreadShell({
+    environmentId: EnvironmentId.make(String(environmentId)),
+    threadId: ThreadId.make(String(threadId)),
+  });
+  const gitStatus = useMemo(
+    () => resolveThreadGitStatus(props.gitStatus, thread?.pullRequests),
+    [props.gitStatus, thread?.pullRequests],
+  );
 
   const currentBranchLabel = gitStatus?.refName ?? props.currentBranch ?? "Detached HEAD";
   const busy = gitOperationLabel !== null;
